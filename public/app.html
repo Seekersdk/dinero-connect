@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dinero Connect</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f6f6f7; color: #202223; }
+    .container { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 24px; }
+    .card { background: #fff; border-radius: 8px; border: 1px solid #e1e3e5; padding: 20px; margin-bottom: 16px; }
+    .filters { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    label { font-size: 13px; font-weight: 500; color: #6d7175; }
+    input, select { padding: 8px 12px; border: 1px solid #c9cccf; border-radius: 6px; font-size: 14px; }
+    .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; }
+    .btn-primary { background: #008060; color: #fff; }
+    .btn-primary:hover { background: #006e52; }
+    .btn-primary:disabled { background: #95c9b4; cursor: not-allowed; }
+    .btn-secondary { background: #fff; color: #202223; border: 1px solid #c9cccf; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 13px; font-weight: 500; color: #6d7175; padding: 8px 12px; border-bottom: 1px solid #e1e3e5; }
+    td { padding: 10px 12px; border-bottom: 1px solid #f1f1f1; font-size: 14px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f9fafb; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; }
+    .badge-paid { background: #d4edda; color: #155724; }
+    .badge-pending { background: #fff3cd; color: #856404; }
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-error { background: #f8d7da; color: #721c24; }
+    .badge-already { background: #e2e3e5; color: #383d41; }
+    .status-bar { font-size: 13px; color: #6d7175; margin-top: 12px; }
+    .empty { text-align: center; padding: 40px; color: #6d7175; }
+    #export-btn { margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Shopify → Dinero</h1>
+
+    <div class="card">
+      <div class="filters">
+        <div class="field">
+          <label>Fra dato</label>
+          <input type="date" id="date-from">
+        </div>
+        <div class="field">
+          <label>Til dato</label>
+          <input type="date" id="date-to">
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="status">
+            <option value="paid">Betalt</option>
+            <option value="any">Alle</option>
+            <option value="pending">Afventer</option>
+            <option value="refunded">Refunderet</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="loadOrders()">Hent ordrer</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table id="orders-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="select-all" onchange="toggleAll(this)"></th>
+            <th>Ordre</th>
+            <th>Kunde</th>
+            <th>Dato</th>
+            <th>Beløb</th>
+            <th>Status</th>
+            <th>Eksport</th>
+          </tr>
+        </thead>
+        <tbody id="orders-body">
+          <tr><td colspan="7" class="empty">Tryk "Hent ordrer" for at indlæse</td></tr>
+        </tbody>
+      </table>
+      <div class="status-bar" id="status-bar"></div>
+      <button class="btn btn-primary" id="export-btn" onclick="exportSelected()" disabled>
+        Eksportér valgte til Dinero
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let orders = [];
+    let exportResults = {};
+
+    async function loadOrders() {
+      const params = new URLSearchParams();
+      const from = document.getElementById('date-from').value;
+      const to = document.getElementById('date-to').value;
+      const status = document.getElementById('status').value;
+
+      if (from) params.set('created_at_min', from + 'T00:00:00Z');
+      if (to) params.set('created_at_max', to + 'T23:59:59Z');
+      if (status) params.set('financial_status', status);
+
+      document.getElementById('status-bar').textContent = 'Henter ordrer...';
+
+      try {
+        const res = await fetch('/api/orders?' + params);
+        if (!res.ok) throw new Error(await res.text());
+        orders = await res.json();
+        renderOrders();
+        document.getElementById('status-bar').textContent = `${orders.length} ordre(r) indlæst`;
+      } catch (err) {
+        document.getElementById('status-bar').textContent = 'Fejl: ' + err.message;
+      }
+    }
+
+    function renderOrders() {
+      const tbody = document.getElementById('orders-body');
+      if (orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">Ingen ordrer fundet</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = orders.map(o => {
+        const result = exportResults[o.id];
+        const date = new Date(o.created_at).toLocaleDateString('da-DK');
+        const amount = parseFloat(o.total_price).toFixed(2) + ' ' + o.currency;
+        const customer = o.billing_address?.name || o.customer?.first_name + ' ' + o.customer?.last_name || o.email || '—';
+
+        let exportBadge = '';
+        if (result?.status === 'success') exportBadge = '<span class="badge badge-success">Eksporteret</span>';
+        else if (result?.status === 'already_exported') exportBadge = '<span class="badge badge-already">Allerede eksporteret</span>';
+        else if (result?.status === 'error') exportBadge = `<span class="badge badge-error">Fejl</span>`;
+
+        return `<tr>
+          <td><input type="checkbox" class="order-cb" value="${o.id}" onchange="updateExportBtn()"></td>
+          <td><strong>${o.name}</strong></td>
+          <td>${customer}</td>
+          <td>${date}</td>
+          <td>${amount}</td>
+          <td><span class="badge badge-${o.financial_status}">${o.financial_status}</span></td>
+          <td>${exportBadge}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function toggleAll(cb) {
+      document.querySelectorAll('.order-cb').forEach(c => c.checked = cb.checked);
+      updateExportBtn();
+    }
+
+    function updateExportBtn() {
+      const checked = document.querySelectorAll('.order-cb:checked').length;
+      const btn = document.getElementById('export-btn');
+      btn.disabled = checked === 0;
+      btn.textContent = checked > 0
+        ? `Eksportér ${checked} ordre(r) til Dinero`
+        : 'Eksportér valgte til Dinero';
+    }
+
+    async function exportSelected() {
+      const orderIds = [...document.querySelectorAll('.order-cb:checked')].map(c => c.value);
+      if (orderIds.length === 0) return;
+
+      const btn = document.getElementById('export-btn');
+      btn.disabled = true;
+      btn.textContent = 'Eksporterer...';
+
+      try {
+        const res = await fetch('/api/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderIds }),
+        });
+        const results = await res.json();
+
+        if (results.error) {
+          alert('Fejl: ' + results.error);
+        } else {
+          results.forEach(r => exportResults[r.orderId] = r);
+          renderOrders();
+          const success = results.filter(r => r.status === 'success').length;
+          document.getElementById('status-bar').textContent = `${success} ordre(r) eksporteret til Dinero`;
+        }
+      } catch (err) {
+        alert('Eksport fejlede: ' + err.message);
+      }
+
+      updateExportBtn();
+    }
+  </script>
+</body>
+</html>

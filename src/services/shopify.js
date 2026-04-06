@@ -1,0 +1,52 @@
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const config = require('../config');
+
+const TOKEN_FILE = path.join(__dirname, '../../.token');
+
+function getStoredToken() {
+  try {
+    return fs.readFileSync(TOKEN_FILE, 'utf8').trim();
+  } catch {
+    return null;
+  }
+}
+
+function storeToken(token) {
+  fs.writeFileSync(TOKEN_FILE, token, 'utf8');
+}
+
+function getClient() {
+  const token = getStoredToken();
+  if (!token) throw new Error('Ingen Shopify access token — gå til /auth for at autorisere');
+
+  return axios.create({
+    baseURL: `https://${config.shopify.store}/admin/api/${config.shopify.apiVersion}/`,
+    headers: {
+      'X-Shopify-Access-Token': token,
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+async function getOrders(params = {}) {
+  const client = getClient();
+  const response = await client.get('orders.json', {
+    params: {
+      status: 'any',
+      limit: 50,
+      fields: 'id,name,email,created_at,total_price,currency,financial_status,customer,billing_address,line_items',
+      ...params,
+    },
+  });
+  return response.data.orders;
+}
+
+async function getOrder(orderId) {
+  const client = getClient();
+  const response = await client.get(`orders/${orderId}.json`);
+  return response.data.order;
+}
+
+module.exports = { getOrders, getOrder, getStoredToken, storeToken };
