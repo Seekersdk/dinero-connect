@@ -22,15 +22,16 @@ router.get('/', (req, res) => {
 });
 
 router.get('/callback', async (req, res) => {
-  const { code, state, hmac, ...rest } = req.query;
+  const { hmac, state, code, ...rest } = req.query;
 
   if (!stateStore.has(state)) {
     return res.status(403).send('Ugyldig state parameter');
   }
   stateStore.delete(state);
 
-  // Verificér HMAC
-  const message = Object.keys(rest).sort().map(k => `${k}=${rest[k]}`).join('&');
+  // Verificér HMAC - kun hmac fjernes fra beregningen
+  const allParams = { state, code, ...rest };
+  const message = Object.keys(allParams).sort().map(k => `${k}=${allParams[k]}`).join('&');
   const digest = crypto.createHmac('sha256', config.shopify.apiSecret).update(message).digest('hex');
   if (digest !== hmac) {
     return res.status(403).send('Ugyldig HMAC signatur');
