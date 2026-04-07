@@ -98,11 +98,12 @@
       document.getElementById('auth-error').style.display = 'block';
     }
 
+    const BASE_URL = '__APP_URL__';
     let orders = [];
     let exportResults = {};
 
     async function apiFetch(url, options = {}) {
-      return fetch(url, {
+      return fetch(BASE_URL + url, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
