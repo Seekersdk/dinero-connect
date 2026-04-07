@@ -109,7 +109,7 @@
 
     async function getToken() {
       if (!app) return null;
-      return await AppBridge.actions.SessionToken.getSessionToken(app);
+      return await AppBridge.utilities.getSessionToken(app);
     }
 
     async function apiFetch(url, options = {}) {
