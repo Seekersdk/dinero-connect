@@ -10,9 +10,16 @@ async function getAccessToken() {
 
   const credentials = Buffer.from(`${config.dinero.clientId}:${config.dinero.clientSecret}`).toString('base64');
 
+  const params = new URLSearchParams({
+    grant_type: 'password',
+    scope: 'read write',
+    username: config.dinero.apiKey,
+    password: config.dinero.apiKey,
+  });
+
   const response = await axios.post(
     'https://authz.dinero.dk/dineroapi/oauth/token',
-    'grant_type=password&scope=read write&username=' + config.dinero.apiKey + '&password=' + config.dinero.apiKey,
+    params.toString(),
     {
       headers: {
         Authorization: `Basic ${credentials}`,
@@ -27,23 +34,27 @@ async function getAccessToken() {
   return tokenCache.accessToken;
 }
 
-function createClient() {
-  const client = axios.create({
+let dineroClient = null;
+
+function getClient() {
+  if (dineroClient) return dineroClient;
+
+  dineroClient = axios.create({
     baseURL: `https://api.dinero.dk/v1/${config.dinero.organizationId}/`,
     headers: { 'Content-Type': 'application/json' },
   });
 
-  client.interceptors.request.use(async (req) => {
+  dineroClient.interceptors.request.use(async (req) => {
     const token = await getAccessToken();
     req.headers.Authorization = `Bearer ${token}`;
     return req;
   });
 
-  return client;
+  return dineroClient;
 }
 
 async function findOrCreateContact(order) {
-  const client = createClient();
+  const client = getClient();
   const email = order.email || order.customer?.email;
 
   if (email) {
@@ -55,7 +66,7 @@ async function findOrCreateContact(order) {
 
   const billing = order.billing_address || {};
   const response = await client.post('contacts', {
-    Name: billing.name || order.customer?.first_name + ' ' + order.customer?.last_name || 'Ukendt',
+    Name: billing.name || (order.customer?.first_name && order.customer?.last_name ? `${order.customer.first_name} ${order.customer.last_name}` : 'Ukendt'),
     Email: email || '',
     Street: billing.address1 || '',
     City: billing.city || '',
@@ -68,7 +79,7 @@ async function findOrCreateContact(order) {
 }
 
 async function createInvoice(contactGuid, order) {
-  const client = createClient();
+  const client = getClient();
   const { mapOrderToInvoice } = require('./mapper');
   const payload = mapOrderToInvoice(contactGuid, order);
   const response = await client.post('invoices', payload);

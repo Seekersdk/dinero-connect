@@ -50,4 +50,21 @@ async function getOrder(orderId) {
   return response.data.order;
 }
 
-module.exports = { getOrders, getOrder, getStoredToken, storeToken };
+async function addTagToOrder(orderId, tag) {
+  const client = getClient();
+  const order = await getOrder(orderId);
+  const existingTags = order.tags ? order.tags.split(', ') : [];
+  if (existingTags.includes(tag)) return;
+  existingTags.push(tag);
+  await client.put(`orders/${orderId}.json`, {
+    order: { id: orderId, tags: existingTags.join(', ') },
+  });
+}
+
+async function orderHasTag(orderId, tag) {
+  const order = await getOrder(orderId);
+  const tags = order.tags ? order.tags.split(', ') : [];
+  return tags.includes(tag);
+}
+
+module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, orderHasTag };
