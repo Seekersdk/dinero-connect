@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../config');
 
-const TOKEN_FILE = path.join(__dirname, '../../.token');
+const TOKEN_FILE = path.join('/app/data', '.token');
 
 function getStoredToken() {
   try {
@@ -14,6 +14,7 @@ function getStoredToken() {
 }
 
 function storeToken(token) {
+  fs.mkdirSync('/app/data', { recursive: true });
   fs.writeFileSync(TOKEN_FILE, token, 'utf8');
 }
 
