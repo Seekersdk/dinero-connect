@@ -8,6 +8,10 @@ const router = express.Router();
 const stateStore = new Set();
 
 router.get('/', (req, res) => {
+  if (req.query.secret !== config.authSecret) {
+    return res.status(403).send('Adgang nægtet');
+  }
+
   const state = crypto.randomBytes(16).toString('hex');
   stateStore.add(state);
 

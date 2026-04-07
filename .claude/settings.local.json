@@ -10,7 +10,8 @@
       "Bash(git remote:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "WebFetch(domain:shopify.dev)"
+      "WebFetch(domain:shopify.dev)",
+      "Bash(node:*)"
     ]
   }
 }

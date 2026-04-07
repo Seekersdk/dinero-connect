@@ -5,6 +5,7 @@ const required = [
   'SHOPIFY_API_SECRET',
   'SHOPIFY_STORE',
   'APP_URL',
+  'AUTH_SECRET',
 ];
 
 for (const key of required) {
@@ -16,6 +17,7 @@ for (const key of required) {
 module.exports = {
   port: process.env.PORT || 3000,
   appUrl: process.env.APP_URL,
+  authSecret: process.env.AUTH_SECRET,
   shopify: {
     apiKey: process.env.SHOPIFY_API_KEY,
     apiSecret: process.env.SHOPIFY_API_SECRET,
