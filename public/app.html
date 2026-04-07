@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dinero Connect</title>
-  <script src="https://unpkg.com/@shopify/app-bridge@3"></script>
+  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f6f6f7; color: #202223; }
@@ -92,38 +92,20 @@
   </div>
 
   <script>
-    const AppBridge = window['app-bridge'];
-    const { getSessionToken } = AppBridge.actions.SessionToken;
+    // Ny App Bridge tilføjer automatisk session tokens til alle fetch-kald
+    const host = new URLSearchParams(location.search).get('host');
+    if (!host) {
+      document.getElementById('auth-error').style.display = 'block';
+    }
 
-    let app = null;
     let orders = [];
     let exportResults = {};
 
-    function initAppBridge() {
-      const apiKey = '__SHOPIFY_API_KEY__';
-      const host = new URLSearchParams(location.search).get('host');
-
-      if (!host) {
-        document.getElementById('auth-error').style.display = 'block';
-        return false;
-      }
-
-      app = AppBridge.createApp({ apiKey, host });
-      return true;
-    }
-
-    async function getToken() {
-      if (!app) return null;
-      return await getSessionToken(app);
-    }
-
     async function apiFetch(url, options = {}) {
-      const token = await getToken();
       return fetch(url, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(options.headers || {}),
         },
       });
@@ -226,7 +208,6 @@
       updateExportBtn();
     }
 
-    initAppBridge();
   </script>
 </body>
 </html>
