@@ -17,7 +17,10 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/export', require('./routes/export'));
 
 app.get('/app', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/app.html'));
+  const fs = require('fs');
+  const html = fs.readFileSync(path.join(__dirname, '../public/app.html'), 'utf8')
+    .replace('__SHOPIFY_API_KEY__', config.shopify.apiKey);
+  res.send(html);
 });
 
 app.get('/', (req, res) => res.redirect('/app'));
