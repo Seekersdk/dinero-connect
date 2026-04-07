@@ -1,7 +1,9 @@
 const express = require('express');
 const { getOrders } = require('../services/shopify');
+const shopifyAuth = require('../middleware/shopifyAuth');
 
 const router = express.Router();
+router.use(shopifyAuth);
 
 router.get('/', async (req, res, next) => {
   try {

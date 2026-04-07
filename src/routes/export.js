@@ -4,8 +4,10 @@ const path = require('path');
 const { getOrder } = require('../services/shopify');
 const { findOrCreateContact, createInvoice } = require('../services/dinero');
 const config = require('../config');
+const shopifyAuth = require('../middleware/shopifyAuth');
 
 const router = express.Router();
+router.use(shopifyAuth);
 const EXPORTED_FILE = path.join(__dirname, '../../.exported.json');
 
 function getExported() {
