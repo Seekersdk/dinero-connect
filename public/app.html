@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dinero Connect</title>
+  <script>const _fetch = window.fetch.bind(window);</script>
   <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -103,7 +104,7 @@
     let exportResults = {};
 
     async function apiFetch(url, options = {}) {
-      return fetch(BASE_URL + url, {
+      return _fetch(BASE_URL + url, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
