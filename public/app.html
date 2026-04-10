@@ -191,17 +191,13 @@
             <thead>
               <tr>
                 <th>Dato</th>
-                <th>Ordre nr</th>
                 <th>Payout ID</th>
                 <th>Beløb</th>
-                <th>Gebyr</th>
-                <th>Netto</th>
-                <th>Dinero</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody id="payouts-body">
-              <tr><td colspan="8" class="empty">Vælg datointerval og tryk "Hent payouts"</td></tr>
+              <tr><td colspan="4" class="empty">Vælg datointerval og tryk "Hent payouts"</td></tr>
             </tbody>
           </table>
         </div>
@@ -562,43 +558,34 @@
       const from = document.getElementById('payout-from').value;
       const to = document.getElementById('payout-to').value;
       const status = document.getElementById('payout-status');
-      status.textContent = 'Henter payouts og ordrer...';
+      status.textContent = 'Henter payouts...';
 
       try {
         const params = new URLSearchParams();
         if (from) params.set('date_min', from);
         if (to) params.set('date_max', to);
 
-        const res = await apiFetch('/api/payouts/detailed?' + params);
+        const res = await apiFetch('/api/payouts?' + params);
         if (!res.ok) throw new Error(await res.text());
-        const rows = await res.json();
+        const payouts = await res.json();
 
         const tbody = document.getElementById('payouts-body');
-        if (rows.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" class="empty">Ingen payouts fundet</td></tr>';
+        if (payouts.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="empty">Ingen payouts fundet</td></tr>';
           status.textContent = '';
           return;
         }
 
-        tbody.innerHTML = rows.map(r => {
-          const dineroCol = r.exported
-            ? `<span class="badge badge-exported">${r.dineroGuid?.substring(0, 8)}</span>`
-            : '<span class="badge badge-missing">Mangler</span>';
-          return `
-            <tr>
-              <td>${r.date}</td>
-              <td><strong>${r.orderName}</strong></td>
-              <td>${r.payoutId}</td>
-              <td>${fmt(r.amount)}</td>
-              <td>${fmt(r.fees)}</td>
-              <td>${fmt(r.net)}</td>
-              <td>${dineroCol}</td>
-              <td><span class="badge badge-${r.payoutStatus === 'paid' ? 'paid' : 'pending'}">${r.payoutStatus}</span></td>
-            </tr>
-          `;
-        }).join('');
+        tbody.innerHTML = payouts.map(p => `
+          <tr class="payout-row" onclick="loadPayoutDetail('${p.id}')">
+            <td>${p.date}</td>
+            <td>${p.id}</td>
+            <td><strong>${fmt(p.amount)} ${p.currency}</strong></td>
+            <td><span class="badge badge-${p.status === 'paid' ? 'paid' : 'pending'}">${p.status}</span></td>
+          </tr>
+        `).join('');
 
-        status.textContent = `${rows.length} ordre(r) i payouts`;
+        status.textContent = `${payouts.length} payout(s) fundet`;
       } catch (err) {
         status.textContent = 'Fejl: ' + err.message;
       }
@@ -631,14 +618,13 @@
             <div class="payout-stat"><div class="label">Netto (udbetalt)</div><div class="value" style="color:#008060;">${fmt(t.net)}</div></div>
           </div>
 
-          <h3 style="font-size:14px;font-weight:600;margin:16px 0 8px;">Ordrer i denne payout</h3>
           <table>
             <thead>
               <tr>
-                <th>Ordre</th>
-                <th>Brutto</th>
+                <th>Ordre nr</th>
+                <th>Payout ID</th>
+                <th>Beløb</th>
                 <th>Gebyr</th>
-                <th>Refund</th>
                 <th>Netto</th>
                 <th>Dinero</th>
               </tr>
@@ -653,9 +639,9 @@
 
           html += `<tr>
             <td><strong>${o.orderName || o.orderId}</strong></td>
+            <td>${data.payoutId}</td>
             <td>${fmt(o.gross)}</td>
             <td>${fmt(o.fees)}</td>
-            <td>${fmt(o.refunds)}</td>
             <td>${fmt(o.net)}</td>
             <td>${dineroCol}</td>
           </tr>`;
