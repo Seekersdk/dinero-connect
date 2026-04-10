@@ -8,7 +8,7 @@ router.get('/', async (req, res, next) => {
   try {
     const { getClient } = require('../services/dinero');
     const client = getClient();
-    const response = await client.get('accounts');
+    const response = await client.get('accounts/entry');
     res.json(response.data.Collection || response.data);
   } catch (err) {
     next(err);
