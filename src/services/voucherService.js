@@ -74,9 +74,17 @@ async function createVatVoucher(voucherDate, vatAmount, orderNames, externalRef)
     ],
   };
 
-  const response = await client.post('vouchers/manuel', payload);
-  console.log('[Voucher] Dinero response:', JSON.stringify(response.data));
-  return response.data;
+  const createRes = await client.post('vouchers/manuel', payload);
+  const draft = createRes.data;
+  console.log('[Voucher] Kladde oprettet:', JSON.stringify(draft));
+
+  // Auto-bogfør bilaget
+  const bookRes = await client.post(`vouchers/manuel/${draft.Guid}/book`, {
+    Timestamp: draft.Timestamp,
+  });
+  const booked = bookRes.data;
+  console.log('[Voucher] Bogført:', JSON.stringify(booked));
+  return booked;
 }
 
 /**
