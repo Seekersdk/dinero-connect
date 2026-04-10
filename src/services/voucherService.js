@@ -75,6 +75,7 @@ async function createVatVoucher(voucherDate, vatAmount, orderNames, externalRef)
   };
 
   const response = await client.post('vouchers/manuel', payload);
+  console.log('[Voucher] Dinero response:', JSON.stringify(response.data));
   return response.data;
 }
 
@@ -104,7 +105,9 @@ async function postPendingVat() {
 
   return {
     status: 'success',
-    voucherNumber: voucher.VoucherNumber,
+    voucherGuid: voucher.Guid,
+    voucherNumber: voucher.VoucherNumber || null,
+    dineroStatus: voucher.Status,
     totalVat,
     orderCount: pending.length,
     orders: pending,
@@ -148,7 +151,9 @@ async function postSingleVat(orderId) {
     status: 'success',
     orderId,
     orderName,
-    voucherNumber: voucher.VoucherNumber,
+    voucherGuid: voucher.Guid,
+    voucherNumber: voucher.VoucherNumber || null,
+    dineroStatus: voucher.Status,
     vatAmount: totalVat,
   };
 }

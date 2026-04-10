@@ -499,7 +499,7 @@
         if (result.status === 'success') {
           btn.textContent = 'OK';
           btn.style.background = '#95c9b4';
-          status.textContent = `Bilag #${result.voucherNumber} — ${fmt(result.vatAmount)} DKK for ${result.orderName}`;
+          status.textContent = `Bilag oprettet (${result.dineroStatus}) — ${fmt(result.vatAmount)} DKK for ${result.orderName}`;
         } else {
           btn.textContent = result.status;
           status.textContent = result.message;
@@ -523,7 +523,7 @@
         if (result.status === 'nothing') {
           status.textContent = result.message;
         } else {
-          status.textContent = `Bilag #${result.voucherNumber} oprettet — ${fmt(result.totalVat)} DKK brugtmoms for ${result.orderCount} ordre(r)`;
+          status.textContent = `Bilag oprettet (${result.dineroStatus}) — ${fmt(result.totalVat)} DKK brugtmoms for ${result.orderCount} ordre(r)`;
           document.getElementById('vat-pending').innerHTML = '<p style="color:#008060;">Brugtmoms bogført!</p>';
         }
       } catch (err) {
