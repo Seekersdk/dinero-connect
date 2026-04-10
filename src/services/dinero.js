@@ -85,9 +85,9 @@ async function createInvoice(contactGuid, order, marginData, transactions) {
   const createRes = await client.post('invoices', payload);
   const draft = createRes.data;
 
-  // Auto-bogfør fakturaen
+  // Auto-bogfør fakturaen (create returnerer TimeStamp med stort S)
   const bookRes = await client.post(`invoices/${draft.Guid}/book`, {
-    Timestamp: draft.Timestamp,
+    Timestamp: draft.TimeStamp,
   });
   return bookRes.data;
 }
