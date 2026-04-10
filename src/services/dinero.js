@@ -82,8 +82,14 @@ async function createInvoice(contactGuid, order, marginData, transactions) {
   const client = getClient();
   const { mapOrderToInvoice } = require('./mapper');
   const payload = mapOrderToInvoice(contactGuid, order, marginData, transactions);
-  const response = await client.post('invoices', payload);
-  return response.data;
+  const createRes = await client.post('invoices', payload);
+  const draft = createRes.data;
+
+  // Auto-bogfør fakturaen
+  const bookRes = await client.post(`invoices/${draft.Guid}/book`, {
+    Timestamp: draft.Timestamp,
+  });
+  return bookRes.data;
 }
 
 module.exports = { findOrCreateContact, createInvoice, getClient };
