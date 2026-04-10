@@ -81,7 +81,6 @@ async function findOrCreateContact(order) {
 async function createInvoice(contactGuid, order, marginData, transactions) {
   const client = getClient();
   const { mapOrderToInvoice } = require('./mapper');
-  const settings = require('./settings');
   const payload = mapOrderToInvoice(contactGuid, order, marginData, transactions);
   const createRes = await client.post('invoices', payload);
   const draft = createRes.data;
@@ -90,26 +89,30 @@ async function createInvoice(contactGuid, order, marginData, transactions) {
   const bookRes = await client.post(`invoices/${draft.Guid}/book`, {
     Timestamp: draft.TimeStamp,
   });
-  const booked = bookRes.data;
-
-  // Auto-registrér betaling hvis ordren er betalt og depositkonto er sat
-  if (order.financial_status === 'paid') {
-    const { accounts } = settings.load();
-    const depositAccount = accounts.cashCard?.accountNumber;
-    if (depositAccount) {
-      await client.post(`invoices/${booked.Guid}/payments`, {
-        Timestamp: booked.Timestamp,
-        DepositAccountNumber: depositAccount,
-        PaymentDate: order.created_at.substring(0, 10),
-        Description: `Shopify betaling ${order.name}`,
-        Amount: parseFloat(order.total_price),
-        RemainderIsFee: false,
-        ExternalReference: `shopify-payment-${order.id}`,
-      });
-    }
-  }
-
-  return booked;
+  return bookRes.data;
 }
 
-module.exports = { findOrCreateContact, createInvoice, getClient };
+/**
+ * Registrér betaling på en bogført faktura.
+ * Kræver faktura Guid + Timestamp fra den bogførte faktura.
+ */
+async function addPaymentToInvoice(invoiceGuid, amount, depositAccount, paymentDate, description, externalRef) {
+  const client = getClient();
+
+  // Hent faktura for at få aktuel Timestamp
+  const invoiceRes = await client.get(`invoices/${invoiceGuid}`);
+  const invoice = invoiceRes.data;
+
+  const paymentRes = await client.post(`invoices/${invoiceGuid}/payments`, {
+    Timestamp: invoice.Timestamp,
+    DepositAccountNumber: depositAccount,
+    PaymentDate: paymentDate,
+    Description: description,
+    Amount: amount,
+    RemainderIsFee: false,
+    ExternalReference: externalRef,
+  });
+  return paymentRes.data;
+}
+
+module.exports = { findOrCreateContact, createInvoice, addPaymentToInvoice, getClient };

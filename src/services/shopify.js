@@ -75,6 +75,12 @@ async function getPayouts(params = {}) {
   return response.data.payouts || [];
 }
 
+async function getPayout(payoutId) {
+  const client = getClient();
+  const response = await client.get(`shopify_payments/payouts/${payoutId}.json`);
+  return response.data.payout;
+}
+
 async function getPayoutTransactions(payoutId) {
   const client = getClient();
   const allTransactions = [];
@@ -148,4 +154,4 @@ async function getOrderMarginData(orderId) {
   return JSON.parse(data.order.metafield.value);
 }
 
-module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, orderHasTag, getOrderMarginData, getOrderTransactions, getPayouts, getPayoutTransactions };
+module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, orderHasTag, getOrderMarginData, getOrderTransactions, getPayouts, getPayout, getPayoutTransactions };

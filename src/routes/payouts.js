@@ -1,5 +1,5 @@
 const express = require('express');
-const { listPayouts, reconcilePayout } = require('../services/payoutService');
+const { listPayouts, reconcilePayout, registerPayoutPayments } = require('../services/payoutService');
 const shopifyAuth = require('../middleware/shopifyAuth');
 
 const router = express.Router();
@@ -24,6 +24,16 @@ router.get('/', async (req, res, next) => {
 router.get('/:id/reconcile', async (req, res, next) => {
   try {
     const result = await reconcilePayout(req.params.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Registrér betalinger i Dinero for ordrer i en payout
+router.post('/:id/register-payments', async (req, res, next) => {
+  try {
+    const result = await registerPayoutPayments(req.params.id);
     res.json(result);
   } catch (err) {
     next(err);

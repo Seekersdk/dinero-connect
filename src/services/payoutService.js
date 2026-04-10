@@ -1,5 +1,7 @@
-const { getPayouts, getPayoutTransactions } = require('./shopify');
+const { getPayouts, getPayout, getPayoutTransactions } = require('./shopify');
+const { addPaymentToInvoice } = require('./dinero');
 const invoiceStore = require('./invoiceStore');
+const settings = require('./settings');
 
 function round2(value) {
   return Math.round(value * 100) / 100;
@@ -145,4 +147,59 @@ async function reconcilePayout(payoutId) {
   return result;
 }
 
-module.exports = { listPayouts, reconcilePayout };
+/**
+ * Registrér betalinger i Dinero for alle ordrer i en payout.
+ * Bruger invoiceStore til at finde Dinero faktura Guid pr. ordre.
+ */
+async function registerPayoutPayments(payoutId) {
+  const [reconciliation, payout] = await Promise.all([
+    reconcilePayout(payoutId),
+    getPayout(payoutId),
+  ]);
+  const payoutDate = payout.date || new Date().toISOString().substring(0, 10);
+  const { accounts } = settings.load();
+  const depositAccount = accounts.cashCard?.accountNumber;
+
+  if (!depositAccount) throw new Error('Kontant/kreditkort konto ikke konfigureret i indstillinger');
+
+  const results = [];
+
+  for (const order of reconciliation.orders) {
+    if (!order.exported || !order.dineroGuid) {
+      results.push({ orderId: order.orderId, orderName: order.orderName, status: 'skipped', reason: 'Ikke eksporteret til Dinero' });
+      continue;
+    }
+
+    try {
+      const amount = round2(order.gross + order.refunds); // refunds er negative
+      if (amount <= 0) {
+        results.push({ orderId: order.orderId, orderName: order.orderName, status: 'skipped', reason: 'Beløb er 0 eller negativt' });
+        continue;
+      }
+
+      await addPaymentToInvoice(
+        order.dineroGuid,
+        amount,
+        depositAccount,
+        payoutDate,
+        `Shopify payout ${payoutId} — ${order.orderName || order.orderId}`,
+        `payout-${payoutId}-${order.orderId}`
+      );
+
+      results.push({ orderId: order.orderId, orderName: order.orderName, status: 'success', amount });
+    } catch (err) {
+      console.error(`[Payout] Betaling fejlede for ordre ${order.orderId}:`, err.response?.data || err.message);
+      results.push({ orderId: order.orderId, orderName: order.orderName, status: 'error', error: err.response?.data?.message || err.message });
+    }
+  }
+
+  return {
+    payoutId,
+    registered: results.filter(r => r.status === 'success').length,
+    skipped: results.filter(r => r.status === 'skipped').length,
+    errors: results.filter(r => r.status === 'error').length,
+    details: results,
+  };
+}
+
+module.exports = { listPayouts, reconcilePayout, registerPayoutPayments };

@@ -669,8 +669,34 @@
           `;
         }
 
+        const hasExported = data.orders.some(o => o.exported);
+        if (hasExported) {
+          html += `<button class="btn btn-primary" style="margin-top:16px;" onclick="registerPayoutPayments('${data.payoutId}')">Registrér betalinger i Dinero</button>`;
+        }
+
         document.getElementById('payout-detail-content').innerHTML = html;
         status.textContent = '';
+      } catch (err) {
+        status.textContent = 'Fejl: ' + err.message;
+      }
+    }
+
+    async function registerPayoutPayments(payoutId) {
+      const status = document.getElementById('payout-status');
+      status.textContent = 'Registrerer betalinger...';
+
+      try {
+        const res = await apiFetch('/api/payouts/' + payoutId + '/register-payments', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        const result = await res.json();
+
+        let msg = `${result.registered} betaling(er) registreret`;
+        if (result.skipped > 0) msg += `, ${result.skipped} sprunget over`;
+        if (result.errors > 0) msg += `, ${result.errors} fejl`;
+        status.textContent = msg;
+
+        // Genindlæs detaljer
+        await loadPayoutDetail(payoutId);
       } catch (err) {
         status.textContent = 'Fejl: ' + err.message;
       }
