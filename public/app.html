@@ -633,9 +633,14 @@
         `;
 
         for (const o of data.orders) {
-          const dineroCol = o.exported
-            ? `<span class="badge badge-exported">${o.dineroNumber || o.dineroGuid?.substring(0, 8)}</span>`
-            : '<span class="badge badge-missing">Ikke eksporteret</span>';
+          let dineroCol;
+          if (o.paid) {
+            dineroCol = '<span class="badge badge-exported">Betalt</span>';
+          } else if (o.exported) {
+            dineroCol = '<span class="badge badge-pending">Bogført</span>';
+          } else {
+            dineroCol = '<span class="badge badge-missing">Ikke eksporteret</span>';
+          }
 
           html += `<tr>
             <td><strong>${o.orderName || o.orderId}</strong></td>
@@ -668,8 +673,8 @@
           `;
         }
 
-        const hasExported = data.orders.some(o => o.exported);
-        if (hasExported) {
+        const hasPending = data.orders.some(o => o.exported && !o.paid);
+        if (hasPending) {
           html += `<button class="btn btn-primary" style="margin-top:16px;" onclick="registerPayoutPayments('${data.payoutId}')">Registrér betalinger i Dinero</button>`;
         }
 

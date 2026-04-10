@@ -1,4 +1,4 @@
-const { getPayouts, getPayout, getPayoutTransactions } = require('./shopify');
+const { getPayouts, getPayout, getPayoutTransactions, orderHasTag, addTagToOrder } = require('./shopify');
 const { addPaymentToInvoice } = require('./dinero');
 const invoiceStore = require('./invoiceStore');
 const settings = require('./settings');
@@ -87,6 +87,7 @@ async function reconcilePayout(payoutId) {
         dineroNumber: invoice?.dineroNumber || null,
         orderName: invoice?.orderName || null,
         exported: !!invoice,
+        paid: false,
         gross: 0,
         fees: 0,
         refunds: 0,
@@ -104,6 +105,13 @@ async function reconcilePayout(payoutId) {
       entry.refunds += amount;
       entry.fees += fee;
     }
+  }
+
+  // Tjek "Betalt" tag for hver ordre
+  for (const entry of Object.values(orderMap)) {
+    try {
+      entry.paid = await orderHasTag(entry.orderId, 'Betalt');
+    } catch { /* ignore */ }
   }
 
   // Afrund
@@ -164,6 +172,8 @@ async function registerPayoutPayments(payoutId) {
 
   const results = [];
 
+  const PAID_TAG = 'Betalt';
+
   for (const order of reconciliation.orders) {
     if (!order.exported || !order.dineroGuid) {
       results.push({ orderId: order.orderId, orderName: order.orderName, status: 'skipped', reason: 'Ikke eksporteret til Dinero' });
@@ -171,6 +181,11 @@ async function registerPayoutPayments(payoutId) {
     }
 
     try {
+      if (await orderHasTag(order.orderId, PAID_TAG)) {
+        results.push({ orderId: order.orderId, orderName: order.orderName, status: 'already_paid' });
+        continue;
+      }
+
       const amount = round2(order.gross + order.refunds); // refunds er negative
       if (amount <= 0) {
         results.push({ orderId: order.orderId, orderName: order.orderName, status: 'skipped', reason: 'Beløb er 0 eller negativt' });
@@ -185,6 +200,8 @@ async function registerPayoutPayments(payoutId) {
         `Shopify payout ${payoutId} — ${order.orderName || order.orderId}`,
         `payout-${payoutId}-${order.orderId}`
       );
+
+      await addTagToOrder(order.orderId, PAID_TAG);
 
       results.push({ orderId: order.orderId, orderName: order.orderName, status: 'success', amount });
     } catch (err) {
