@@ -5,7 +5,7 @@ const SETTINGS_FILE = path.join('/app/data', 'settings.json');
 
 const DEFAULT_SETTINGS = {
   accounts: {
-    sale: { accountNumber: null, label: 'Salg (uden moms – avance)' },
+    sale: { accountNumber: null, label: 'Total salg' },
     usedVat: { accountNumber: null, label: 'Brugtmoms' },
     transactionFee: { accountNumber: null, label: 'Transaktionsgebyr' },
     giftCard: { accountNumber: null, label: 'Gavekort' },
