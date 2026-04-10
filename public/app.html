@@ -370,7 +370,7 @@
         let exportBadge = '';
         if (result?.status === 'success') exportBadge = '<span class="badge badge-success">Eksporteret</span>';
         else if (result?.status === 'already_exported') exportBadge = '<span class="badge badge-already">Allerede eksporteret</span>';
-        else if (result?.status === 'error') exportBadge = `<span class="badge badge-error">Fejl</span>`;
+        else if (result?.status === 'error') exportBadge = `<span class="badge badge-error" title="${result.error || ''}">Fejl: ${result.error || 'ukendt'}</span>`;
 
         return `<tr>
           <td><input type="checkbox" class="order-cb" value="${o.id}" onchange="updateExportBtn()"></td>

@@ -41,7 +41,8 @@ router.post('/', async (req, res, next) => {
         await addTagToOrder(orderId, TAG);
         results.push({ orderId, status: 'success', dineroId: invoice.Guid });
       } catch (err) {
-        results.push({ orderId, status: 'error', error: err.message });
+        console.error(`[Export] Ordre ${orderId} fejlede:`, err.response?.data || err.message);
+        results.push({ orderId, status: 'error', error: err.response?.data?.Message || err.message });
       }
     }
 
