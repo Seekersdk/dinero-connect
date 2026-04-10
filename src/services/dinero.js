@@ -78,12 +78,12 @@ async function findOrCreateContact(order) {
   return response.data.ContactGuid;
 }
 
-async function createInvoice(contactGuid, order) {
+async function createInvoice(contactGuid, order, marginData, transactions) {
   const client = getClient();
   const { mapOrderToInvoice } = require('./mapper');
-  const payload = mapOrderToInvoice(contactGuid, order);
+  const payload = mapOrderToInvoice(contactGuid, order, marginData, transactions);
   const response = await client.post('invoices', payload);
   return response.data;
 }
 
-module.exports = { findOrCreateContact, createInvoice };
+module.exports = { findOrCreateContact, createInvoice, getClient };

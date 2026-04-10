@@ -15,6 +15,9 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.use('/auth', require('./routes/auth'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/export', require('./routes/export'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/accounts', require('./routes/accounts'));
+app.use('/api/payouts', require('./routes/payouts'));
 
 app.get('/app', (req, res) => {
   const fs = require('fs');

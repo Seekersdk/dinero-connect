@@ -67,4 +67,85 @@ async function orderHasTag(orderId, tag) {
   return tags.includes(tag);
 }
 
-module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, orderHasTag };
+// --- Shopify Payments (payouts) ---
+
+async function getPayouts(params = {}) {
+  const client = getClient();
+  const response = await client.get('shopify_payments/payouts.json', { params });
+  return response.data.payouts || [];
+}
+
+async function getPayoutTransactions(payoutId) {
+  const client = getClient();
+  const allTransactions = [];
+  let sinceId = null;
+
+  // Paginate through all transactions for this payout
+  do {
+    const params = { payout_id: payoutId, limit: 250 };
+    if (sinceId) params.since_id = sinceId;
+
+    const response = await client.get('shopify_payments/balance/transactions.json', { params });
+    const txns = response.data.transactions || [];
+    if (txns.length === 0) break;
+
+    allTransactions.push(...txns);
+    sinceId = txns[txns.length - 1].id;
+
+    if (txns.length < 250) break;
+  } while (true);
+
+  return allTransactions;
+}
+
+// --- GraphQL support for metafields ---
+
+function graphqlClient() {
+  const token = getStoredToken();
+  if (!token) throw new Error('Ingen Shopify access token — gå til /auth for at autorisere');
+  return { token };
+}
+
+async function shopifyGraphQL(query, variables = {}) {
+  const { token } = graphqlClient();
+  const response = await axios.post(
+    `https://${config.shopify.store}/admin/api/${config.shopify.apiVersion}/graphql.json`,
+    { query, variables },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': token,
+      },
+    }
+  );
+
+  if (response.data.errors) {
+    throw new Error(`GraphQL errors: ${JSON.stringify(response.data.errors)}`);
+  }
+  return response.data.data;
+}
+
+async function getOrderTransactions(orderId) {
+  const client = getClient();
+  const response = await client.get(`orders/${orderId}/transactions.json`);
+  return response.data.transactions || [];
+}
+
+const ORDER_MARGIN_QUERY = `
+  query ($id: ID!) {
+    order(id: $id) {
+      metafield(namespace: "finance", key: "margin_summary") {
+        value
+      }
+    }
+  }
+`;
+
+async function getOrderMarginData(orderId) {
+  const gid = `gid://shopify/Order/${orderId}`;
+  const data = await shopifyGraphQL(ORDER_MARGIN_QUERY, { id: gid });
+  if (!data.order?.metafield?.value) return null;
+  return JSON.parse(data.order.metafield.value);
+}
+
+module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, orderHasTag, getOrderMarginData, getOrderTransactions, getPayouts, getPayoutTransactions };

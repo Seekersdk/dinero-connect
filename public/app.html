@@ -34,6 +34,26 @@
     .empty { text-align: center; padding: 40px; color: #6d7175; }
     #export-btn { margin-top: 16px; }
     #auth-error { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 16px; margin-bottom: 16px; display: none; }
+    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .settings-grid .field { display: flex; flex-direction: column; gap: 4px; }
+    .settings-grid select { padding: 8px 12px; border: 1px solid #c9cccf; border-radius: 6px; font-size: 14px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; cursor: pointer; }
+    .card-header h2 { font-size: 16px; font-weight: 600; }
+    .card-header .toggle { font-size: 12px; color: #6d7175; }
+    .settings-actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
+    .save-status { font-size: 13px; color: #008060; }
+    .payout-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .payout-stat { background: #f9fafb; border-radius: 6px; padding: 12px; }
+    .payout-stat .label { font-size: 12px; color: #6d7175; }
+    .payout-stat .value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+    .badge-valid { background: #d4edda; color: #155724; }
+    .badge-invalid { background: #f8d7da; color: #721c24; }
+    .badge-exported { background: #d4edda; color: #155724; }
+    .badge-missing { background: #fff3cd; color: #856404; }
+    .payout-row { cursor: pointer; }
+    .payout-row:hover td { background: #eef9f4; }
+    .detail-back { font-size: 13px; color: #008060; cursor: pointer; margin-bottom: 12px; display: inline-block; }
+    .detail-back:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -42,6 +62,45 @@
 
     <div id="auth-error">
       App Bridge ikke initialiseret — åbn appen fra Shopify Admin.
+    </div>
+
+    <div class="card">
+      <div class="card-header" onclick="toggleSettings()">
+        <h2>Kontoindstillinger</h2>
+        <span class="toggle" id="settings-toggle">▼ Vis</span>
+      </div>
+      <div id="settings-panel" style="display:none;">
+        <div class="settings-grid">
+          <div class="field">
+            <label>Salg (uden moms – avance)</label>
+            <select id="acct-sale"><option value="">Indlæser...</option></select>
+          </div>
+          <div class="field">
+            <label>Brugtmoms</label>
+            <select id="acct-usedVat"><option value="">Indlæser...</option></select>
+          </div>
+          <div class="field">
+            <label>Transaktionsgebyr</label>
+            <select id="acct-transactionFee"><option value="">Indlæser...</option></select>
+          </div>
+          <div class="field">
+            <label>Gavekort</label>
+            <select id="acct-giftCard"><option value="">Indlæser...</option></select>
+          </div>
+          <div class="field">
+            <label>Kontant/kreditkort</label>
+            <select id="acct-cashCard"><option value="">Indlæser...</option></select>
+          </div>
+          <div class="field">
+            <label>Store credit</label>
+            <select id="acct-storeCredit"><option value="">Indlæser...</option></select>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button class="btn btn-primary" onclick="saveSettings()">Gem indstillinger</button>
+          <span class="save-status" id="save-status"></span>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -89,6 +148,49 @@
         Eksportér valgte til Dinero
       </button>
     </div>
+
+    <div class="card">
+      <div class="card-header" onclick="togglePayouts()">
+        <h2>Bankafstemning</h2>
+        <span class="toggle" id="payouts-toggle">▼ Vis</span>
+      </div>
+      <div id="payouts-panel" style="display:none;">
+        <div class="filters" style="margin-bottom:16px;">
+          <div class="field">
+            <label>Fra dato</label>
+            <input type="date" id="payout-from">
+          </div>
+          <div class="field">
+            <label>Til dato</label>
+            <input type="date" id="payout-to">
+          </div>
+          <button class="btn btn-primary" onclick="loadPayouts()">Hent payouts</button>
+        </div>
+
+        <div id="payouts-list">
+          <table>
+            <thead>
+              <tr>
+                <th>Dato</th>
+                <th>Payout ID</th>
+                <th>Beløb</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="payouts-body">
+              <tr><td colspan="4" class="empty">Vælg datointerval og tryk "Hent payouts"</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="payout-detail" style="display:none;">
+          <span class="detail-back" onclick="showPayoutList()">&larr; Tilbage til payouts</span>
+          <div id="payout-detail-content"></div>
+        </div>
+
+        <div class="status-bar" id="payout-status"></div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -105,6 +207,93 @@
 
     let orders = [];
     let exportResults = {};
+    let dineroAccounts = [];
+    let currentSettings = null;
+
+    const ACCOUNT_KEYS = ['sale', 'usedVat', 'transactionFee', 'giftCard', 'cashCard', 'storeCredit'];
+
+    function toggleSettings() {
+      const panel = document.getElementById('settings-panel');
+      const toggle = document.getElementById('settings-toggle');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        toggle.textContent = '▲ Skjul';
+        loadSettings();
+      } else {
+        panel.style.display = 'none';
+        toggle.textContent = '▼ Vis';
+      }
+    }
+
+    function populateAccountDropdowns() {
+      ACCOUNT_KEYS.forEach(key => {
+        const select = document.getElementById('acct-' + key);
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">(Ikke valgt)</option>';
+        dineroAccounts.forEach(a => {
+          const opt = document.createElement('option');
+          opt.value = a.AccountNumber;
+          opt.textContent = `${a.AccountNumber} — ${a.Name}`;
+          select.appendChild(opt);
+        });
+        if (currentVal) select.value = currentVal;
+      });
+    }
+
+    function applySettingsToDropdowns() {
+      if (!currentSettings) return;
+      ACCOUNT_KEYS.forEach(key => {
+        const acct = currentSettings.accounts[key];
+        if (acct && acct.accountNumber) {
+          document.getElementById('acct-' + key).value = acct.accountNumber;
+        }
+      });
+    }
+
+    async function loadSettings() {
+      try {
+        const [acctRes, settingsRes] = await Promise.all([
+          apiFetch('/api/accounts'),
+          apiFetch('/api/settings'),
+        ]);
+
+        if (acctRes.ok) {
+          dineroAccounts = await acctRes.json();
+          populateAccountDropdowns();
+        }
+
+        if (settingsRes.ok) {
+          currentSettings = await settingsRes.json();
+          applySettingsToDropdowns();
+        }
+      } catch (err) {
+        document.getElementById('save-status').textContent = 'Fejl ved indlæsning: ' + err.message;
+      }
+    }
+
+    async function saveSettings() {
+      const accounts = {};
+      ACCOUNT_KEYS.forEach(key => {
+        const val = document.getElementById('acct-' + key).value;
+        accounts[key] = { accountNumber: val ? parseInt(val, 10) : null };
+      });
+
+      try {
+        const res = await apiFetch('/api/settings', {
+          method: 'PUT',
+          body: JSON.stringify({ accounts }),
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+
+        currentSettings = await res.json();
+        const status = document.getElementById('save-status');
+        status.textContent = 'Gemt!';
+        setTimeout(() => status.textContent = '', 3000);
+      } catch (err) {
+        document.getElementById('save-status').textContent = 'Fejl: ' + err.message;
+      }
+    }
 
     async function getToken() {
       if (!app) return null;
@@ -218,6 +407,151 @@
       }
 
       updateExportBtn();
+    }
+
+    // --- Bankafstemning ---
+
+    function togglePayouts() {
+      const panel = document.getElementById('payouts-panel');
+      const toggle = document.getElementById('payouts-toggle');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        toggle.textContent = '▲ Skjul';
+      } else {
+        panel.style.display = 'none';
+        toggle.textContent = '▼ Vis';
+      }
+    }
+
+    function showPayoutList() {
+      document.getElementById('payouts-list').style.display = 'block';
+      document.getElementById('payout-detail').style.display = 'none';
+    }
+
+    function fmt(n) {
+      return parseFloat(n).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    async function loadPayouts() {
+      const from = document.getElementById('payout-from').value;
+      const to = document.getElementById('payout-to').value;
+      const status = document.getElementById('payout-status');
+      status.textContent = 'Henter payouts...';
+
+      try {
+        const params = new URLSearchParams();
+        if (from) params.set('date_min', from);
+        if (to) params.set('date_max', to);
+
+        const res = await apiFetch('/api/payouts?' + params);
+        if (!res.ok) throw new Error(await res.text());
+        const payouts = await res.json();
+
+        const tbody = document.getElementById('payouts-body');
+        if (payouts.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="empty">Ingen payouts fundet</td></tr>';
+          status.textContent = '';
+          return;
+        }
+
+        tbody.innerHTML = payouts.map(p => `
+          <tr class="payout-row" onclick="loadPayoutDetail('${p.id}')">
+            <td>${p.date}</td>
+            <td>${p.id}</td>
+            <td><strong>${fmt(p.amount)} ${p.currency}</strong></td>
+            <td><span class="badge badge-${p.status === 'paid' ? 'paid' : 'pending'}">${p.status}</span></td>
+          </tr>
+        `).join('');
+
+        status.textContent = `${payouts.length} payout(s) fundet`;
+      } catch (err) {
+        status.textContent = 'Fejl: ' + err.message;
+      }
+    }
+
+    async function loadPayoutDetail(payoutId) {
+      const status = document.getElementById('payout-status');
+      status.textContent = 'Henter afstemning...';
+
+      try {
+        const res = await apiFetch('/api/payouts/' + payoutId + '/reconcile');
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+
+        document.getElementById('payouts-list').style.display = 'none';
+        document.getElementById('payout-detail').style.display = 'block';
+
+        const t = data.totals;
+        const validBadge = data.valid
+          ? '<span class="badge badge-valid">Afstemning OK</span>'
+          : `<span class="badge badge-invalid">Afvigelse: ${fmt(data.discrepancy)}</span>`;
+
+        let html = `
+          <h2 style="font-size:16px;margin-bottom:12px;">Payout ${data.payoutId} ${validBadge}</h2>
+          <div class="payout-summary">
+            <div class="payout-stat"><div class="label">Brutto salg</div><div class="value">${fmt(t.gross)}</div></div>
+            <div class="payout-stat"><div class="label">Gebyrer</div><div class="value">${fmt(t.fees)}</div></div>
+            <div class="payout-stat"><div class="label">Refunderinger</div><div class="value">${fmt(t.refunds)}</div></div>
+            <div class="payout-stat"><div class="label">Justeringer</div><div class="value">${fmt(t.adjustments)}</div></div>
+            <div class="payout-stat"><div class="label">Netto (udbetalt)</div><div class="value" style="color:#008060;">${fmt(t.net)}</div></div>
+          </div>
+
+          <h3 style="font-size:14px;font-weight:600;margin:16px 0 8px;">Ordrer i denne payout</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Ordre</th>
+                <th>Brutto</th>
+                <th>Gebyr</th>
+                <th>Refund</th>
+                <th>Netto</th>
+                <th>Dinero</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        for (const o of data.orders) {
+          const dineroCol = o.exported
+            ? `<span class="badge badge-exported">${o.dineroNumber || o.dineroGuid?.substring(0, 8)}</span>`
+            : '<span class="badge badge-missing">Ikke eksporteret</span>';
+
+          html += `<tr>
+            <td><strong>${o.orderName || o.orderId}</strong></td>
+            <td>${fmt(o.gross)}</td>
+            <td>${fmt(o.fees)}</td>
+            <td>${fmt(o.refunds)}</td>
+            <td>${fmt(o.net)}</td>
+            <td>${dineroCol}</td>
+          </tr>`;
+        }
+
+        html += '</tbody></table>';
+
+        if (data.unmatched.length > 0) {
+          html += `
+            <h3 style="font-size:14px;font-weight:600;margin:16px 0 8px;">Ikke-tilknyttede transaktioner</h3>
+            <table>
+              <thead><tr><th>Type</th><th>Beløb</th><th>Gebyr</th><th>Netto</th></tr></thead>
+              <tbody>
+                ${data.unmatched.map(u => `
+                  <tr>
+                    <td>${u.type}</td>
+                    <td>${fmt(u.amount)}</td>
+                    <td>${fmt(u.fee)}</td>
+                    <td>${fmt(u.net)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+
+        document.getElementById('payout-detail-content').innerHTML = html;
+        status.textContent = '';
+      } catch (err) {
+        status.textContent = 'Fejl: ' + err.message;
+      }
     }
 
   </script>

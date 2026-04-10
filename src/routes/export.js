@@ -1,6 +1,7 @@
 const express = require('express');
-const { getOrder, addTagToOrder, orderHasTag } = require('../services/shopify');
+const { getOrder, addTagToOrder, orderHasTag, getOrderMarginData, getOrderTransactions } = require('../services/shopify');
 const { findOrCreateContact, createInvoice } = require('../services/dinero');
+const invoiceStore = require('../services/invoiceStore');
 const config = require('../config');
 const shopifyAuth = require('../middleware/shopifyAuth');
 
@@ -30,8 +31,13 @@ router.post('/', async (req, res, next) => {
         }
 
         const order = await getOrder(orderId);
+        const [marginData, transactions] = await Promise.all([
+          getOrderMarginData(orderId),
+          getOrderTransactions(orderId),
+        ]);
         const contactGuid = await findOrCreateContact(order);
-        const invoice = await createInvoice(contactGuid, order);
+        const invoice = await createInvoice(contactGuid, order, marginData, transactions);
+        invoiceStore.set(orderId, { ...invoice, orderName: order.name });
         await addTagToOrder(orderId, TAG);
         results.push({ orderId, status: 'success', dineroId: invoice.Guid });
       } catch (err) {
