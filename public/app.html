@@ -95,6 +95,10 @@
             <label>Store credit</label>
             <select id="acct-storeCredit"><option value="">Indlæser...</option></select>
           </div>
+          <div class="field">
+            <label>Moms konto (brugtmoms)</label>
+            <select id="acct-vatLiability"><option value="">Indlæser...</option></select>
+          </div>
         </div>
         <div class="settings-actions">
           <button class="btn btn-primary" onclick="saveSettings()">Gem indstillinger</button>
@@ -147,6 +151,21 @@
       <button class="btn btn-primary" id="export-btn" onclick="exportSelected()" disabled>
         Eksportér valgte til Dinero
       </button>
+    </div>
+
+    <div class="card">
+      <div class="card-header" onclick="toggleVat()">
+        <h2>Brugtmoms bogføring</h2>
+        <span class="toggle" id="vat-toggle">▼ Vis</span>
+      </div>
+      <div id="vat-panel" style="display:none;">
+        <p style="font-size:13px;color:#6d7175;margin-bottom:12px;">
+          Opretter et manuelt bilag i Dinero der flytter beregnet brugtmoms fra salgskonto til momskonto.
+        </p>
+        <button class="btn btn-primary" onclick="loadPendingVat()">Tjek ventende ordrer</button>
+        <div id="vat-pending" style="margin-top:12px;"></div>
+        <div class="status-bar" id="vat-status"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -210,7 +229,7 @@
     let dineroAccounts = [];
     let currentSettings = null;
 
-    const ACCOUNT_KEYS = ['sale', 'usedVat', 'transactionFee', 'giftCard', 'cashCard', 'storeCredit'];
+    const ACCOUNT_KEYS = ['sale', 'usedVat', 'transactionFee', 'giftCard', 'cashCard', 'storeCredit', 'vatLiability'];
 
     function toggleSettings() {
       const panel = document.getElementById('settings-panel');
@@ -407,6 +426,79 @@
       }
 
       updateExportBtn();
+    }
+
+    // --- Brugtmoms ---
+
+    function toggleVat() {
+      const panel = document.getElementById('vat-panel');
+      const toggle = document.getElementById('vat-toggle');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        toggle.textContent = '▲ Skjul';
+      } else {
+        panel.style.display = 'none';
+        toggle.textContent = '▼ Vis';
+      }
+    }
+
+    async function loadPendingVat() {
+      const status = document.getElementById('vat-status');
+      const container = document.getElementById('vat-pending');
+      status.textContent = 'Henter ventende ordrer...';
+      container.innerHTML = '';
+
+      try {
+        const res = await apiFetch('/api/vat/pending');
+        if (!res.ok) throw new Error(await res.text());
+        const pending = await res.json();
+
+        if (pending.length === 0) {
+          container.innerHTML = '<p style="color:#6d7175;">Ingen ordrer med uposteret brugtmoms.</p>';
+          status.textContent = '';
+          return;
+        }
+
+        const totalVat = pending.reduce((sum, p) => sum + p.vatAmount, 0);
+
+        let html = `
+          <div class="payout-summary">
+            <div class="payout-stat"><div class="label">Ordrer</div><div class="value">${pending.length}</div></div>
+            <div class="payout-stat"><div class="label">Samlet brugtmoms</div><div class="value">${fmt(totalVat)} DKK</div></div>
+          </div>
+          <table>
+            <thead><tr><th>Ordre</th><th>Brugtmoms</th><th>Dato</th></tr></thead>
+            <tbody>
+              ${pending.map(p => `<tr><td><strong>${p.orderName}</strong></td><td>${fmt(p.vatAmount)} DKK</td><td>${p.date}</td></tr>`).join('')}
+            </tbody>
+          </table>
+          <button class="btn btn-primary" style="margin-top:12px;" onclick="postVat()">Bogfør ${fmt(totalVat)} DKK brugtmoms nu</button>
+        `;
+        container.innerHTML = html;
+        status.textContent = `${pending.length} ordre(r) klar til moms-bogføring`;
+      } catch (err) {
+        status.textContent = 'Fejl: ' + err.message;
+      }
+    }
+
+    async function postVat() {
+      const status = document.getElementById('vat-status');
+      status.textContent = 'Bogfører brugtmoms...';
+
+      try {
+        const res = await apiFetch('/api/vat/post', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        const result = await res.json();
+
+        if (result.status === 'nothing') {
+          status.textContent = result.message;
+        } else {
+          status.textContent = `Bilag #${result.voucherNumber} oprettet — ${fmt(result.totalVat)} DKK brugtmoms for ${result.orderCount} ordre(r)`;
+          document.getElementById('vat-pending').innerHTML = '<p style="color:#008060;">Brugtmoms bogført!</p>';
+        }
+      } catch (err) {
+        status.textContent = 'Fejl: ' + err.message;
+      }
     }
 
     // --- Bankafstemning ---

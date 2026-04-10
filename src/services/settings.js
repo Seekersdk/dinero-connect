@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS = {
     giftCard: { accountNumber: null, label: 'Gavekort' },
     cashCard: { accountNumber: null, label: 'Kontant/kreditkort' },
     storeCredit: { accountNumber: null, label: 'Store credit' },
+    vatLiability: { accountNumber: null, label: 'Moms konto (brugtmoms)' },
   },
 };
 

@@ -17,7 +17,7 @@ router.get('/', (req, res) => {
 
   const params = new URLSearchParams({
     client_id: config.shopify.apiKey,
-    scope: 'read_orders,read_customers,read_products',
+    scope: 'read_orders,write_orders,read_customers,read_products,read_shopify_payments_payouts',
     redirect_uri: `${config.appUrl}/auth/callback`,
     state,
   });
