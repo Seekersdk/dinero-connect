@@ -23,8 +23,8 @@ app.use('/api/vat', require('./routes/vat'));
 app.get('/app', (req, res) => {
   const fs = require('fs');
   const html = fs.readFileSync(path.join(__dirname, '../public/app.html'), 'utf8')
-    .replace('__SHOPIFY_API_KEY__', config.shopify.apiKey)
-    .replace('__APP_URL__', config.appUrl);
+    .replaceAll('__SHOPIFY_API_KEY__', config.shopify.apiKey)
+    .replaceAll('__APP_URL__', config.appUrl);
   res.send(html);
 });
 

@@ -1,7 +1,7 @@
 const { getClient } = require('./dinero');
 const settings = require('./settings');
 const invoiceStore = require('./invoiceStore');
-const { getOrderMarginData, orderHasTag, addTagToOrder } = require('./shopify');
+const { getOrderMarginData, orderHasTag, addTagToOrder, removeTagFromOrder } = require('./shopify');
 
 const VAT_TAG = 'Moms bogført';
 
@@ -104,11 +104,20 @@ async function postPendingVat() {
   const orderIds = pending.map(p => p.orderId).sort();
   const externalRef = `brugtmoms-${voucherDate}-${orderIds.join(',')}`.substring(0, 128);
 
-  const voucher = await createVatVoucher(voucherDate, totalVat, orderNames, externalRef);
-
-  // Tag alle ordrer som moms-bogført
+  // Tag ordrer FØR vi opretter bilaget (forhindrer duplikater)
   for (const p of pending) {
     await addTagToOrder(p.orderId, VAT_TAG);
+  }
+
+  let voucher;
+  try {
+    voucher = await createVatVoucher(voucherDate, totalVat, orderNames, externalRef);
+  } catch (err) {
+    // Fjern tags igen hvis bilaget fejlede
+    for (const p of pending) {
+      try { await removeTagFromOrder(p.orderId, VAT_TAG); } catch { /* ignore */ }
+    }
+    throw err;
   }
 
   return {
@@ -152,8 +161,16 @@ async function postSingleVat(orderId) {
   const voucherDate = new Date().toISOString().substring(0, 10);
   const externalRef = `brugtmoms-${orderId}`;
 
-  const voucher = await createVatVoucher(voucherDate, totalVat, [orderName], externalRef);
+  // Tag FØR bilag (forhindrer duplikater)
   await addTagToOrder(orderId, VAT_TAG);
+
+  let voucher;
+  try {
+    voucher = await createVatVoucher(voucherDate, totalVat, [orderName], externalRef);
+  } catch (err) {
+    try { await removeTagFromOrder(orderId, VAT_TAG); } catch { /* ignore */ }
+    throw err;
+  }
 
   return {
     status: 'success',

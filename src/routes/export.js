@@ -1,5 +1,5 @@
 const express = require('express');
-const { getOrder, addTagToOrder, orderHasTag, getOrderMarginData, getOrderTransactions } = require('../services/shopify');
+const { getOrder, addTagToOrder, removeTagFromOrder, orderHasTag, getOrderMarginData, getOrderTransactions } = require('../services/shopify');
 const { findOrCreateContact, createInvoice } = require('../services/dinero');
 const invoiceStore = require('../services/invoiceStore');
 const config = require('../config');
@@ -25,10 +25,14 @@ router.post('/', async (req, res, next) => {
 
     for (const orderId of orderIds) {
       try {
-        if (await orderHasTag(orderId, TAG)) {
+        // Dobbelt-check: tag OG invoiceStore
+        if (invoiceStore.get(orderId) || await orderHasTag(orderId, TAG)) {
           results.push({ orderId, status: 'already_exported' });
           continue;
         }
+
+        // Tag ordren FØR vi opretter i Dinero (forhindrer duplikater)
+        await addTagToOrder(orderId, TAG);
 
         const order = await getOrder(orderId);
         const [marginData, transactions] = await Promise.all([
@@ -38,9 +42,10 @@ router.post('/', async (req, res, next) => {
         const contactGuid = await findOrCreateContact(order);
         const invoice = await createInvoice(contactGuid, order, marginData, transactions);
         invoiceStore.set(orderId, { ...invoice, orderName: order.name });
-        await addTagToOrder(orderId, TAG);
         results.push({ orderId, status: 'success', dineroId: invoice.Guid });
       } catch (err) {
+        // Fjern tag igen hvis Dinero-kaldet fejlede
+        try { await removeTagFromOrder(orderId, TAG); } catch { /* ignore */ }
         console.error(`[Export] Ordre ${orderId} fejlede:`, err.response?.data || err.message);
         results.push({ orderId, status: 'error', error: err.response?.data?.Message || err.message });
       }

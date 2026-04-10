@@ -61,6 +61,17 @@ async function addTagToOrder(orderId, tag) {
   });
 }
 
+async function removeTagFromOrder(orderId, tag) {
+  const client = getClient();
+  const order = await getOrder(orderId);
+  const existingTags = order.tags ? order.tags.split(', ') : [];
+  const filtered = existingTags.filter(t => t !== tag);
+  if (filtered.length === existingTags.length) return; // tag var der ikke
+  await client.put(`orders/${orderId}.json`, {
+    order: { id: orderId, tags: filtered.join(', ') },
+  });
+}
+
 async function orderHasTag(orderId, tag) {
   const order = await getOrder(orderId);
   const tags = order.tags ? order.tags.split(', ') : [];
@@ -154,4 +165,4 @@ async function getOrderMarginData(orderId) {
   return JSON.parse(data.order.metafield.value);
 }
 
-module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, orderHasTag, getOrderMarginData, getOrderTransactions, getPayouts, getPayout, getPayoutTransactions };
+module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, removeTagFromOrder, orderHasTag, getOrderMarginData, getOrderTransactions, getPayouts, getPayout, getPayoutTransactions };

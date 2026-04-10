@@ -26,33 +26,38 @@ router.get('/', (req, res) => {
 });
 
 router.get('/callback', async (req, res) => {
-  const { hmac, state, code, ...rest } = req.query;
+  try {
+    const { hmac, state, code, ...rest } = req.query;
 
-  if (!stateStore.has(state)) {
-    return res.status(403).send('Ugyldig state parameter');
-  }
-  stateStore.delete(state);
-
-  // Verificér HMAC - kun hmac fjernes fra beregningen
-  const allParams = { state, code, ...rest };
-  const message = Object.keys(allParams).sort().map(k => `${k}=${allParams[k]}`).join('&');
-  const digest = crypto.createHmac('sha256', config.shopify.apiSecret).update(message).digest('hex');
-  if (digest !== hmac) {
-    return res.status(403).send('Ugyldig HMAC signatur');
-  }
-
-  // Byt code for access token
-  const response = await axios.post(
-    `https://${config.shopify.store}/admin/oauth/access_token`,
-    {
-      client_id: config.shopify.apiKey,
-      client_secret: config.shopify.apiSecret,
-      code,
+    if (!stateStore.has(state)) {
+      return res.status(403).send('Ugyldig state parameter');
     }
-  );
+    stateStore.delete(state);
 
-  storeToken(response.data.access_token);
-  res.redirect('/app');
+    // Verificér HMAC - kun hmac fjernes fra beregningen
+    const allParams = { state, code, ...rest };
+    const message = Object.keys(allParams).sort().map(k => `${k}=${allParams[k]}`).join('&');
+    const digest = crypto.createHmac('sha256', config.shopify.apiSecret).update(message).digest('hex');
+    if (digest !== hmac) {
+      return res.status(403).send('Ugyldig HMAC signatur');
+    }
+
+    // Byt code for access token
+    const response = await axios.post(
+      `https://${config.shopify.store}/admin/oauth/access_token`,
+      {
+        client_id: config.shopify.apiKey,
+        client_secret: config.shopify.apiSecret,
+        code,
+      }
+    );
+
+    storeToken(response.data.access_token);
+    res.redirect('/app');
+  } catch (err) {
+    console.error('[Auth] Callback fejlede:', err.message);
+    res.status(500).send('Autorisering fejlede: ' + err.message);
+  }
 });
 
 module.exports = router;
