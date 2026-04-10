@@ -81,6 +81,7 @@ async function findOrCreateContact(order) {
 async function createInvoice(contactGuid, order, marginData, transactions) {
   const client = getClient();
   const { mapOrderToInvoice } = require('./mapper');
+  const settings = require('./settings');
   const payload = mapOrderToInvoice(contactGuid, order, marginData, transactions);
   const createRes = await client.post('invoices', payload);
   const draft = createRes.data;
@@ -89,7 +90,26 @@ async function createInvoice(contactGuid, order, marginData, transactions) {
   const bookRes = await client.post(`invoices/${draft.Guid}/book`, {
     Timestamp: draft.TimeStamp,
   });
-  return bookRes.data;
+  const booked = bookRes.data;
+
+  // Auto-registrér betaling hvis ordren er betalt og depositkonto er sat
+  if (order.financial_status === 'paid') {
+    const { accounts } = settings.load();
+    const depositAccount = accounts.cashCard?.accountNumber;
+    if (depositAccount) {
+      await client.post(`invoices/${booked.Guid}/payments`, {
+        Timestamp: booked.Timestamp,
+        DepositAccountNumber: depositAccount,
+        PaymentDate: order.created_at.substring(0, 10),
+        Description: `Shopify betaling ${order.name}`,
+        Amount: parseFloat(order.total_price),
+        RemainderIsFee: false,
+        ExternalReference: `shopify-payment-${order.id}`,
+      });
+    }
+  }
+
+  return booked;
 }
 
 module.exports = { findOrCreateContact, createInvoice, getClient };
