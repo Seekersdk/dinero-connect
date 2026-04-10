@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const STORE_FILE = path.join('/app/data', 'invoice-map.json');
+let writeLock = Promise.resolve();
 
 function load() {
   try {
@@ -16,16 +17,20 @@ function save(data) {
   fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-/** Gem kobling: Shopify orderId → Dinero faktura-info */
+/** Gem kobling: Shopify orderId → Dinero faktura-info (med simpel låsning) */
 function set(orderId, invoiceData) {
-  const map = load();
-  map[String(orderId)] = {
-    dineroGuid: invoiceData.Guid,
-    dineroNumber: invoiceData.Number || null,
-    orderName: invoiceData.orderName || null,
-    exportedAt: new Date().toISOString(),
-  };
-  save(map);
+  writeLock = writeLock.then(() => {
+    const map = load();
+    map[String(orderId)] = {
+      dineroGuid: invoiceData.Guid,
+      dineroNumber: invoiceData.Number || null,
+      orderName: invoiceData.orderName || null,
+      exportedAt: new Date().toISOString(),
+    };
+    save(map);
+  }).catch(err => {
+    console.error('[InvoiceStore] Write fejlede:', err.message);
+  });
 }
 
 /** Hent Dinero-faktura info for en ordre */

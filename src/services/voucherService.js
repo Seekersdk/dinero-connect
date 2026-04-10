@@ -1,13 +1,11 @@
 const { getClient } = require('./dinero');
 const settings = require('./settings');
 const invoiceStore = require('./invoiceStore');
-const { getOrderMarginData, orderHasTag, addTagToOrder, removeTagFromOrder } = require('./shopify');
+const { getOrderMarginData, orderHasTag, addTagToOrder, removeTagFromOrder, getOrderTagsBatch } = require('./shopify');
+
+const { round2 } = require('../utils');
 
 const VAT_TAG = 'Moms bogført';
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
 
 /**
  * Beregn brugtmoms for alle eksporterede ordrer der mangler moms-bogføring.
@@ -15,11 +13,16 @@ function round2(value) {
  */
 async function collectPendingVat() {
   const allInvoices = invoiceStore.getAll();
-  const pending = [];
+  const orderIds = Object.keys(allInvoices);
+  if (orderIds.length === 0) return [];
 
+  // Batch-hent tags (1 API-kald pr. 250 ordrer i stedet for 1 pr. ordre)
+  const tagMap = await getOrderTagsBatch(orderIds);
+
+  const pending = [];
   for (const [orderId, info] of Object.entries(allInvoices)) {
-    // Spring over hvis moms allerede er bogført
-    if (await orderHasTag(orderId, VAT_TAG)) continue;
+    const tags = tagMap.get(orderId);
+    if (tags && tags.has(VAT_TAG)) continue;
 
     const marginData = await getOrderMarginData(orderId);
     if (!marginData?.line_items) continue;

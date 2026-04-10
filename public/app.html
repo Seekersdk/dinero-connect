@@ -213,6 +213,13 @@
   </div>
 
   <script>
+    function esc(str) {
+      if (!str) return '';
+      const d = document.createElement('div');
+      d.textContent = String(str);
+      return d.innerHTML;
+    }
+
     const AppBridge = window['app-bridge'];
     const host = new URLSearchParams(location.search).get('host');
     const BASE_URL = '__APP_URL__';
@@ -365,20 +372,20 @@
         const result = exportResults[o.id];
         const date = new Date(o.created_at).toLocaleDateString('da-DK');
         const amount = parseFloat(o.total_price).toFixed(2) + ' ' + o.currency;
-        const customer = o.billing_address?.name || (o.customer?.first_name + ' ' + o.customer?.last_name) || o.email || '—';
+        const customer = esc(o.billing_address?.name || (o.customer?.first_name + ' ' + o.customer?.last_name) || o.email || '—');
 
         let exportBadge = '';
         if (result?.status === 'success') exportBadge = '<span class="badge badge-success">Eksporteret</span>';
         else if (result?.status === 'already_exported') exportBadge = '<span class="badge badge-already">Allerede eksporteret</span>';
-        else if (result?.status === 'error') exportBadge = `<span class="badge badge-error" title="${result.error || ''}">Fejl: ${result.error || 'ukendt'}</span>`;
+        else if (result?.status === 'error') exportBadge = `<span class="badge badge-error" title="${esc(result.error)}">Fejl: ${esc(result.error) || 'ukendt'}</span>`;
 
         return `<tr>
           <td><input type="checkbox" class="order-cb" value="${o.id}" onchange="updateExportBtn()"></td>
-          <td><strong>${o.name}</strong></td>
+          <td><strong>${esc(o.name)}</strong></td>
           <td>${customer}</td>
           <td>${date}</td>
           <td>${amount}</td>
-          <td><span class="badge badge-${o.financial_status}">${o.financial_status}</span></td>
+          <td><span class="badge badge-${esc(o.financial_status)}">${esc(o.financial_status)}</span></td>
           <td>${exportBadge}</td>
         </tr>`;
       }).join('');

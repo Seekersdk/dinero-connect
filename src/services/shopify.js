@@ -33,15 +33,32 @@ function getClient() {
 
 async function getOrders(params = {}) {
   const client = getClient();
-  const response = await client.get('orders.json', {
-    params: {
-      status: 'any',
-      limit: 50,
-      fields: 'id,name,email,created_at,total_price,currency,financial_status,customer,billing_address,line_items',
-      ...params,
-    },
-  });
-  return response.data.orders;
+  const allOrders = [];
+  let url = 'orders.json';
+  let queryParams = {
+    status: 'any',
+    limit: 250,
+    fields: 'id,name,email,created_at,total_price,currency,financial_status,customer,billing_address,line_items',
+    ...params,
+  };
+
+  do {
+    const response = await client.get(url, { params: queryParams });
+    allOrders.push(...response.data.orders);
+
+    // Shopify paginering via Link header
+    const link = response.headers.link || response.headers.Link || '';
+    const nextMatch = link.match(/<([^>]+)>;\s*rel="next"/);
+    if (nextMatch && allOrders.length < 1000) {
+      // Brug fuld URL fra Link header
+      url = nextMatch[1].replace(client.defaults.baseURL, '');
+      queryParams = {}; // params er i URL'en
+    } else {
+      break;
+    }
+  } while (true);
+
+  return allOrders;
 }
 
 async function getOrder(orderId) {
@@ -73,9 +90,41 @@ async function removeTagFromOrder(orderId, tag) {
 }
 
 async function orderHasTag(orderId, tag) {
-  const order = await getOrder(orderId);
-  const tags = order.tags ? order.tags.split(', ') : [];
+  const client = getClient();
+  const response = await client.get(`orders/${orderId}.json`, {
+    params: { fields: 'id,tags' },
+  });
+  const tags = response.data.order.tags ? response.data.order.tags.split(', ') : [];
   return tags.includes(tag);
+}
+
+/**
+ * Batch-hent tags for flere ordrer (maks 250 pr. kald).
+ * Returnerer Map<orderId, Set<tag>>.
+ */
+async function getOrderTagsBatch(orderIds) {
+  if (orderIds.length === 0) return new Map();
+  const client = getClient();
+  const tagMap = new Map();
+
+  // Shopify tillader op til 250 IDs pr. kald
+  for (let i = 0; i < orderIds.length; i += 250) {
+    const batch = orderIds.slice(i, i + 250);
+    const response = await client.get('orders.json', {
+      params: {
+        ids: batch.join(','),
+        fields: 'id,tags',
+        status: 'any',
+        limit: 250,
+      },
+    });
+    for (const order of response.data.orders) {
+      const tags = order.tags ? new Set(order.tags.split(', ')) : new Set();
+      tagMap.set(String(order.id), tags);
+    }
+  }
+
+  return tagMap;
 }
 
 // --- Shopify Payments (payouts) ---
@@ -165,4 +214,4 @@ async function getOrderMarginData(orderId) {
   return JSON.parse(data.order.metafield.value);
 }
 
-module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, removeTagFromOrder, orderHasTag, getOrderMarginData, getOrderTransactions, getPayouts, getPayout, getPayoutTransactions };
+module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, removeTagFromOrder, orderHasTag, getOrderTagsBatch, getOrderMarginData, getOrderTransactions, getPayouts, getPayout, getPayoutTransactions };

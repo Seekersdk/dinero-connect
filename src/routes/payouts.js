@@ -20,41 +20,6 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// Payouts med ordrer udfoldet
-router.get('/detailed', async (req, res, next) => {
-  try {
-    const params = {};
-    if (req.query.date_min) params.date_min = req.query.date_min;
-    if (req.query.date_max) params.date_max = req.query.date_max;
-    if (req.query.status) params.status = req.query.status;
-
-    const payouts = await listPayouts(params);
-    const rows = [];
-
-    for (const p of payouts) {
-      const reconciliation = await reconcilePayout(p.id);
-      for (const order of reconciliation.orders) {
-        rows.push({
-          date: p.date,
-          orderName: order.orderName || order.orderId,
-          orderId: order.orderId,
-          payoutId: p.id,
-          amount: order.gross,
-          fees: order.fees,
-          net: order.net,
-          exported: order.exported,
-          dineroGuid: order.dineroGuid,
-          payoutStatus: p.status,
-        });
-      }
-    }
-
-    res.json(rows);
-  } catch (err) {
-    next(err);
-  }
-});
-
 // Afstemning for en enkelt payout
 router.get('/:id/reconcile', async (req, res, next) => {
   try {

@@ -1,8 +1,5 @@
 const settings = require('./settings');
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
+const { round2 } = require('../utils');
 
 /**
  * Map en Shopify-ordre til en Dinero-faktura.

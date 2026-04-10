@@ -1,11 +1,8 @@
-const { getPayouts, getPayout, getPayoutTransactions, orderHasTag, addTagToOrder } = require('./shopify');
+const { getPayouts, getPayout, getPayoutTransactions, orderHasTag, addTagToOrder, getOrderTagsBatch } = require('./shopify');
 const { addPaymentToInvoice, getClient } = require('./dinero');
 const invoiceStore = require('./invoiceStore');
 const settings = require('./settings');
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
+const { round2 } = require('../utils');
 
 /**
  * Hent payouts med datofilter.
@@ -107,11 +104,14 @@ async function reconcilePayout(payoutId) {
     }
   }
 
-  // Tjek "Betalt" tag for hver ordre
-  for (const entry of Object.values(orderMap)) {
-    try {
-      entry.paid = await orderHasTag(entry.orderId, 'Betalt');
-    } catch { /* ignore */ }
+  // Batch-hent tags (1 kald pr. 250 ordrer i stedet for 1 pr. ordre)
+  const orderIdsForTags = Object.keys(orderMap);
+  if (orderIdsForTags.length > 0) {
+    const tagMap = await getOrderTagsBatch(orderIdsForTags);
+    for (const entry of Object.values(orderMap)) {
+      const tags = tagMap.get(String(entry.orderId));
+      entry.paid = tags ? tags.has('Betalt') : false;
+    }
   }
 
   // Afrund

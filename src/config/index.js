@@ -14,6 +14,12 @@ for (const key of required) {
   }
 }
 
+const dineroKeys = ['DINERO_API_KEY', 'DINERO_CLIENT_ID', 'DINERO_CLIENT_SECRET', 'DINERO_ORGANIZATION_ID'];
+const missingDinero = dineroKeys.filter(k => !process.env[k]);
+if (missingDinero.length > 0) {
+  console.warn(`[Config] Dinero credentials mangler: ${missingDinero.join(', ')} — Dinero-funktioner vil fejle`);
+}
+
 module.exports = {
   port: process.env.PORT || 3000,
   appUrl: process.env.APP_URL,
@@ -22,7 +28,7 @@ module.exports = {
     apiKey: process.env.SHOPIFY_API_KEY,
     apiSecret: process.env.SHOPIFY_API_SECRET,
     store: process.env.SHOPIFY_STORE,
-    apiVersion: '2024-01',
+    apiVersion: '2025-01',
   },
   dinero: {
     apiKey: process.env.DINERO_API_KEY,

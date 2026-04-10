@@ -8,7 +8,13 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+app.use(cors({
+  origin: [
+    config.appUrl,
+    `https://${config.shopify.store}`,
+    /\.myshopify\.com$/,
+  ],
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
