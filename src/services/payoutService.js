@@ -1,5 +1,5 @@
 const { getPayouts, getPayout, getPayoutTransactions, orderHasTag, addTagToOrder } = require('./shopify');
-const { addPaymentToInvoice } = require('./dinero');
+const { addPaymentToInvoice, getClient } = require('./dinero');
 const invoiceStore = require('./invoiceStore');
 const settings = require('./settings');
 
@@ -210,11 +210,49 @@ async function registerPayoutPayments(payoutId) {
     }
   }
 
+  // Bogfør samlet transaktionsgebyr som bilag
+  let feeVoucher = null;
+  const feeAccount = accounts.transactionFee?.accountNumber;
+  const totalFees = round2(Math.abs(reconciliation.totals.fees));
+
+  if (feeAccount && depositAccount && totalFees > 0) {
+    try {
+      const client = getClient();
+      const feeRef = `payout-fee-${payoutId}`;
+
+      const createRes = await client.post('vouchers/manuel', {
+        VoucherDate: payoutDate,
+        ExternalReference: feeRef,
+        Lines: [
+          {
+            Description: `Shopify transaktionsgebyr — Payout ${payoutId}`,
+            AccountNumber: feeAccount,
+            BalancingAccountNumber: depositAccount,
+            Amount: totalFees,
+            AccountVatCode: 'none',
+            BalancingAccountVatCode: 'none',
+          },
+        ],
+      });
+      const draft = createRes.data;
+
+      const bookRes = await client.post(`vouchers/manuel/${draft.Guid}/book`, {
+        Timestamp: draft.Timestamp,
+      });
+      feeVoucher = { status: 'success', amount: totalFees, voucherNumber: bookRes.data.VoucherNumber };
+      console.log(`[Payout ${payoutId}] Gebyr-bilag bogført: ${totalFees} DKK`);
+    } catch (err) {
+      console.error(`[Payout ${payoutId}] Gebyr-bilag fejlede:`, err.response?.data || err.message);
+      feeVoucher = { status: 'error', error: err.response?.data?.message || err.message };
+    }
+  }
+
   return {
     payoutId,
     registered: results.filter(r => r.status === 'success').length,
     skipped: results.filter(r => r.status === 'skipped').length,
     errors: results.filter(r => r.status === 'error').length,
+    feeVoucher,
     details: results,
   };
 }

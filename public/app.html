@@ -697,6 +697,8 @@
         let msg = `${result.registered} betaling(er) registreret`;
         if (result.skipped > 0) msg += `, ${result.skipped} sprunget over`;
         if (result.errors > 0) msg += `, ${result.errors} fejl`;
+        if (result.feeVoucher?.status === 'success') msg += ` — Gebyr ${fmt(result.feeVoucher.amount)} DKK bogført`;
+        else if (result.feeVoucher?.status === 'error') msg += ` — Gebyr fejlede: ${result.feeVoucher.error}`;
         status.textContent = msg;
 
         // Genindlæs detaljer
