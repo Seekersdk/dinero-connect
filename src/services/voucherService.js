@@ -111,4 +111,46 @@ async function postPendingVat() {
   };
 }
 
-module.exports = { collectPendingVat, createVatVoucher, postPendingVat };
+/**
+ * Bogfør brugtmoms for én enkelt ordre.
+ */
+async function postSingleVat(orderId) {
+  if (await orderHasTag(orderId, VAT_TAG)) {
+    return { status: 'already', message: 'Moms allerede bogført for denne ordre' };
+  }
+
+  const info = invoiceStore.get(orderId);
+  if (!info) throw new Error('Ordre ikke fundet i invoice store — eksportér til Dinero først');
+
+  const marginData = await getOrderMarginData(orderId);
+  if (!marginData?.line_items) {
+    return { status: 'nothing', message: 'Ingen margindata fundet for denne ordre' };
+  }
+
+  let totalVat = 0;
+  for (const item of marginData.line_items) {
+    totalVat += item.vat || 0;
+  }
+
+  if (totalVat <= 0) {
+    return { status: 'nothing', message: 'Ingen brugtmoms at bogføre (moms = 0)' };
+  }
+
+  totalVat = round2(totalVat);
+  const orderName = info.orderName || orderId;
+  const voucherDate = new Date().toISOString().substring(0, 10);
+  const externalRef = `brugtmoms-${orderId}`;
+
+  const voucher = await createVatVoucher(voucherDate, totalVat, [orderName], externalRef);
+  await addTagToOrder(orderId, VAT_TAG);
+
+  return {
+    status: 'success',
+    orderId,
+    orderName,
+    voucherNumber: voucher.VoucherNumber,
+    vatAmount: totalVat,
+  };
+}
+
+module.exports = { collectPendingVat, createVatVoucher, postPendingVat, postSingleVat };

@@ -467,16 +467,46 @@
             <div class="payout-stat"><div class="label">Samlet brugtmoms</div><div class="value">${fmt(totalVat)} DKK</div></div>
           </div>
           <table>
-            <thead><tr><th>Ordre</th><th>Brugtmoms</th><th>Dato</th></tr></thead>
+            <thead><tr><th>Ordre</th><th>Brugtmoms</th><th>Dato</th><th></th></tr></thead>
             <tbody>
-              ${pending.map(p => `<tr><td><strong>${p.orderName}</strong></td><td>${fmt(p.vatAmount)} DKK</td><td>${p.date}</td></tr>`).join('')}
+              ${pending.map(p => `<tr id="vat-row-${p.orderId}">
+                <td><strong>${p.orderName}</strong></td>
+                <td>${fmt(p.vatAmount)} DKK</td>
+                <td>${p.date}</td>
+                <td><button class="btn btn-primary" style="padding:4px 10px;font-size:12px;" onclick="postSingleVat('${p.orderId}', this)">Bogfør</button></td>
+              </tr>`).join('')}
             </tbody>
           </table>
-          <button class="btn btn-primary" style="margin-top:12px;" onclick="postVat()">Bogfør ${fmt(totalVat)} DKK brugtmoms nu</button>
+          <button class="btn btn-primary" style="margin-top:12px;" onclick="postVat()">Bogfør alle (${fmt(totalVat)} DKK)</button>
         `;
         container.innerHTML = html;
         status.textContent = `${pending.length} ordre(r) klar til moms-bogføring`;
       } catch (err) {
+        status.textContent = 'Fejl: ' + err.message;
+      }
+    }
+
+    async function postSingleVat(orderId, btn) {
+      const status = document.getElementById('vat-status');
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      try {
+        const res = await apiFetch('/api/vat/post/' + orderId, { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        const result = await res.json();
+
+        if (result.status === 'success') {
+          btn.textContent = 'OK';
+          btn.style.background = '#95c9b4';
+          status.textContent = `Bilag #${result.voucherNumber} — ${fmt(result.vatAmount)} DKK for ${result.orderName}`;
+        } else {
+          btn.textContent = result.status;
+          status.textContent = result.message;
+        }
+      } catch (err) {
+        btn.textContent = 'Fejl';
+        btn.style.background = '#e4a5a5';
         status.textContent = 'Fejl: ' + err.message;
       }
     }
