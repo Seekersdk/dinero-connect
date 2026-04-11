@@ -200,7 +200,10 @@ async function getOrderTransactions(orderId) {
 const ORDER_MARGIN_QUERY = `
   query ($id: ID!) {
     order(id: $id) {
-      metafield(namespace: "finance", key: "margin_summary") {
+      marginSummary: metafield(namespace: "finance", key: "margin_summary") {
+        value
+      }
+      bookedVat: metafield(namespace: "finance", key: "booked_vat") {
         value
       }
     }
@@ -210,8 +213,39 @@ const ORDER_MARGIN_QUERY = `
 async function getOrderMarginData(orderId) {
   const gid = `gid://shopify/Order/${orderId}`;
   const data = await shopifyGraphQL(ORDER_MARGIN_QUERY, { id: gid });
-  if (!data.order?.metafield?.value) return null;
-  return JSON.parse(data.order.metafield.value);
+  if (!data.order?.marginSummary?.value) return null;
+  const result = JSON.parse(data.order.marginSummary.value);
+  // Tilføj bookedVat fra separat metafield (ShoptifyDineros eget)
+  if (data.order.bookedVat?.value) {
+    result.bookedVat = parseFloat(data.order.bookedVat.value);
+  }
+  return result;
 }
 
-module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, removeTagFromOrder, orderHasTag, getOrderTagsBatch, getOrderMarginData, getOrderTransactions, getPayouts, getPayout, getPayoutTransactions };
+const SET_METAFIELD_MUTATION = `
+  mutation ($input: MetafieldsSetInput!) {
+    metafieldsSet(metafields: [$input]) {
+      metafields { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+async function setOrderMetafield(orderId, namespace, key, value, type = 'number_decimal') {
+  const gid = `gid://shopify/Order/${orderId}`;
+  const data = await shopifyGraphQL(SET_METAFIELD_MUTATION, {
+    input: {
+      ownerId: gid,
+      namespace,
+      key,
+      value: String(value),
+      type,
+    },
+  });
+  if (data.metafieldsSet?.userErrors?.length > 0) {
+    throw new Error(`Metafield fejl: ${JSON.stringify(data.metafieldsSet.userErrors)}`);
+  }
+  return data;
+}
+
+module.exports = { getOrders, getOrder, getStoredToken, storeToken, addTagToOrder, removeTagFromOrder, orderHasTag, getOrderTagsBatch, getOrderMarginData, getOrderTransactions, setOrderMetafield, getPayouts, getPayout, getPayoutTransactions };

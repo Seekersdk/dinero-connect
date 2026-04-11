@@ -468,19 +468,27 @@
 
         const totalVat = pending.reduce((sum, p) => sum + p.vatAmount, 0);
 
+        const newBookings = pending.filter(p => !p.isCorrection);
+        const corrections = pending.filter(p => p.isCorrection);
+        const newTotal = newBookings.reduce((sum, p) => sum + p.vatAmount, 0);
+        const corrTotal = corrections.reduce((sum, p) => sum + p.vatAmount, 0);
+
         let html = `
           <div class="payout-summary">
-            <div class="payout-stat"><div class="label">Ordrer</div><div class="value">${pending.length}</div></div>
-            <div class="payout-stat"><div class="label">Samlet brugtmoms</div><div class="value">${fmt(totalVat)} DKK</div></div>
+            <div class="payout-stat"><div class="label">Nye bogføringer</div><div class="value">${newBookings.length}</div></div>
+            <div class="payout-stat"><div class="label">Ny moms</div><div class="value">${fmt(newTotal)} DKK</div></div>
+            <div class="payout-stat"><div class="label">Korrektioner</div><div class="value">${corrections.length}</div></div>
+            <div class="payout-stat"><div class="label">Korrektion</div><div class="value" style="color:${corrTotal < 0 ? '#c0392b' : 'inherit'}">${fmt(corrTotal)} DKK</div></div>
           </div>
           <table>
-            <thead><tr><th>Ordre</th><th>Brugtmoms</th><th>Dato</th><th></th></tr></thead>
+            <thead><tr><th>Ordre</th><th>Brugtmoms</th><th>Type</th><th>Dato</th><th></th></tr></thead>
             <tbody>
               ${pending.map(p => `<tr id="vat-row-${p.orderId}">
-                <td><strong>${p.orderName}</strong></td>
-                <td>${fmt(p.vatAmount)} DKK</td>
+                <td><strong>${esc(p.orderName)}</strong></td>
+                <td style="color:${p.vatAmount < 0 ? '#c0392b' : 'inherit'}">${fmt(p.vatAmount)} DKK</td>
+                <td>${p.isCorrection ? '<span class="badge badge-error">Korrektion</span>' : '<span class="badge badge-pending">Ny</span>'}</td>
                 <td>${p.date}</td>
-                <td><button class="btn btn-primary" style="padding:4px 10px;font-size:12px;" onclick="postSingleVat('${p.orderId}', this)">Bogfør</button></td>
+                <td><button class="btn btn-primary" style="padding:4px 10px;font-size:12px;" onclick="postSingleVat('${p.orderId}', this)">${p.isCorrection ? 'Korrigér' : 'Bogfør'}</button></td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -506,7 +514,8 @@
         if (result.status === 'success') {
           btn.textContent = 'OK';
           btn.style.background = '#95c9b4';
-          status.textContent = `Bilag oprettet (${result.dineroStatus}) — ${fmt(result.vatAmount)} DKK for ${result.orderName}`;
+          const label = result.type === 'correction' ? 'Korrektion' : 'Bilag oprettet';
+          status.textContent = `${label} (${result.dineroStatus}) — ${fmt(result.vatAmount)} DKK for ${result.orderName}`;
         } else {
           btn.textContent = result.status;
           status.textContent = result.message;
@@ -530,7 +539,12 @@
         if (result.status === 'nothing') {
           status.textContent = result.message;
         } else {
-          status.textContent = `Bilag oprettet (${result.dineroStatus}) — ${fmt(result.totalVat)} DKK brugtmoms for ${result.orderCount} ordre(r)`;
+          const parts = (result.vouchers || []).map(v =>
+            v.type === 'correction'
+              ? `Korrektion: ${fmt(v.totalVat)} DKK (${v.orderCount} ordre(r))`
+              : `Ny moms: ${fmt(v.totalVat)} DKK (${v.orderCount} ordre(r))`
+          );
+          status.textContent = parts.join(' — ') || `${fmt(result.totalVat)} DKK for ${result.orderCount} ordre(r)`;
           document.getElementById('vat-pending').innerHTML = '<p style="color:#008060;">Brugtmoms bogført!</p>';
         }
       } catch (err) {
